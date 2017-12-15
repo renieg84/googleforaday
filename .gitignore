@@ -1,3 +1,5 @@
+# Created by .ignore support plugin (hsz.mobi)
+### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -8,7 +10,6 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -24,6 +25,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -50,22 +52,9 @@ coverage.xml
 *.mo
 *.pot
 
-# Django stuff:
-*.log
-local_settings.py
-
 # Flask stuff:
 instance/
 .webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -73,29 +62,18 @@ target/
 # pyenv
 .python-version
 
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
-
-# dotenv
+# Environments
 .env
-
-# virtualenv
 .venv
+env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# Sensitive or high-churn files:
+.idea/
+*.sqlite*
+.vscode
 
-# Rope project settings
-.ropeproject
 
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
