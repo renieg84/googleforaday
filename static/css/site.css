@@ -1,0 +1,34 @@
+body {
+    padding-top: 20px;
+}
+
+#index-box, #index-button-block {
+    padding: 30px 30px 20px;
+}
+
+#index-button {
+    margin-right: 15px;
+    width: 100px;
+}
+
+#search-button {
+    margin-left: 15px;
+    width: 100px;
+}
+
+#index-menu {
+    margin-right: 20px;
+}
+
+#search-menu {
+    margin-left: 20px;
+}
+
+#search-result {
+    padding-left: 45px;
+}
+
+#index-result {
+    padding-left: 30px;
+}
+
