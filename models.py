@@ -8,12 +8,33 @@ class Page(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String, index=True)
     link = db.Column(db.String, unique=True, index=True)
+    word_assoc = db.relationship('PageWord', backref=db.backref("page"), cascade="all, delete-orphan",
+                                 single_parent=True, lazy='dynamic')
+
+    @property
+    def serialize(self):
+        """Return object data in easily serializable format"""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'link': self.link
+        }
 
 
 class Word(db.Model):
     __tablename__ = 'word'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, unique=True, index=True)
+    page_assoc = db.relationship('PageWord', backref=db.backref("word"), cascade="all, delete-orphan",
+                                 single_parent=True, lazy='dynamic')
+
+    @property
+    def serialize(self):
+        """Return object data in easily serializable format"""
+        return {
+            'id': self.id,
+            'name': self.name
+        }
 
 
 class PageWord(db.Model):
@@ -21,14 +42,3 @@ class PageWord(db.Model):
     page_id = db.Column(db.Integer, db.ForeignKey('page.id'), primary_key=True)
     word_id = db.Column(db.Integer, db.ForeignKey('word.id'), primary_key=True)
     count = db.Column(db.Integer, default=0)
-    page = db.relationship(Page, backref=db.backref("word_assoc"))
-    word = db.relationship(Word, backref=db.backref("page_assoc"))
-
-    @property
-    def serialize(self):
-        """Return object data in easily serializeable format"""
-        return {
-            'word': self.word.name,
-            'page': {'title': self.page.title, 'link': self.page.link},
-            'count': self.count
-        }
