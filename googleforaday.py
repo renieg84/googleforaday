@@ -7,39 +7,26 @@ from flask import Flask, jsonify, request
 from flask.helpers import send_file
 from flask.templating import render_template
 from lxml import html
+from lxml.html import HtmlElement
 
 from models import db, Page, Word, PageWord
 
 # App config
 app = Flask(__name__)
 app.config['DEBUG'] = True
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:mysql@localhost/googleforaday'
 app.url_map.strict_slashes = False
 db.app = app
 db.init_app(app)
 
 # Globals
-DIRTY_EXTENSIONS = ['png', 'jpg', 'gif', 'jpeg']
 SKIP_LINKS = ['#', '/']
+SKIP_TAGS = ['script', 'style']
 
 
 @app.route('/', methods=('GET',))
 def index():
-    # page1 = Page(title="First Page", link="http://www.page1.com")
-    # # page2 = Page(title="Second Page", link="http://www.page2.com")
-    #
-    # word1 = Word(name="biscuit")
-    # word2 = Word(name="creamy")
-    # word3 = Word(name="chocolate")
-    #
-    # occurrence1 = PageWord(page=page1, word=word1, count=20)
-    # occurrence2 = PageWord(page=page1, word=word2, count=10)
-    # occurrence3 = PageWord(page=page1, word=word3, count=30)
-    #
-    # db.session.add_all([occurrence1, occurrence2, occurrence3])
-    #
-    # db.session.commit()
-
     return render_template('index.html')
 
 
@@ -48,31 +35,73 @@ def send_template(template):
     return send_file('templates/partials/{}'.format(template))
 
 
-@app.route('/index')
+@app.route('/index-url', methods=('POST', 'UPDATE',))
 def index_url():
-    origin = 'http://localhost:1337'
-    nlc, nwc = process_url(origin, set([origin]))
-    return 'ok'
+    origin = request.args.get('url', '', type=str)
+    if not origin:
+        return jsonify('empty')
+    nw, nl = process_url(origin, set([origin]))
+    return jsonify({'nw': nw, 'nl': nl})
 
 
-@app.route('/search', methods=('GET',))
+@app.route('/clear-index', methods=('POST',))
+def clear_index():
+    try:
+        db.session.query(Page).delete()
+        db.session.query(Word).delete()
+        db.session.query(PageWord).delete()
+        db.session.commit()
+    except Exception, ex:
+        print ex.message
+        db.session.rollback()
+    return jsonify({'cleaned': True})
+
+
+@app.route('/search-word', methods=('GET',))
 def search():
     word = request.args.get('word', '', type=str)
     return search_word(word)
 
 
 def search_word(word):
-    word_obj = Word.query.filter_by(name=word).first()
-    occurrences = PageWord.query.filter_by(word=word_obj).order_by('count asc').all()
-    return jsonify(result=[o.serialize for o in occurrences])
+    decoded_word = word.decode('utf-8')
+    w = db.session.query(Word).filter(Word.name.ilike('%{0}%'.format(decoded_word))).first()
+    result = []
+    if w:
+        occurrences = w.page_assoc.order_by('count desc').all()
+        for o in occurrences:
+            result.append({
+                'count': o.count,
+                'word': o.word.name,
+                'page': {'link': o.page.link, 'title': o.page.title}})
+    return jsonify(result=result)
 
 
-def index_html(html_text, origin, title):
+def count_word(a, elems):
+    count = 0
+    for elem in elems:
+        if elem.lower().decode('UTF-8') == a:
+            count += 1
+    return count
+
+
+def get_text(element, result=[]):
+    children = element.getchildren()
+    if children:
+        for elem in filter(lambda e: isinstance(e, HtmlElement) and e.tag not in SKIP_TAGS, children):
+            get_text(elem)
+    else:
+        if element.text and element.text.strip():
+            result.append(element.text.strip())
+        elif element.tail and element.tail.strip():
+            result.append(element.tail.strip())
+    return " ".join(result)
+
+
+def index_html(parsed_html, origin, title):
+    body_text = get_text(parsed_html)
     nwc = nlc = 0
-    first_clean = re.sub(r'<(style|script)[\s]+[type="text/javascript"]*[>]+.*(</(style|script)>)+', '', html_text)
-    full_clean_data = re.sub('[{}\d]'.format(re.escape(string.punctuation)), ' ', re.sub(r'<[^>]+>', '', first_clean))
-
-    page_data = {'origin': origin, 'title': title, 'words': []}
+    full_clean_data = re.sub('[{0}\d]'.format(re.escape(string.punctuation)), ' ', body_text)
     words = full_clean_data.split()
     counted = []
     occurrences = []
@@ -81,61 +110,62 @@ def index_html(html_text, origin, title):
         nlc += 1
         page = Page(title=title, link=origin)
     for w in words:
-        if w not in counted:
-            count = words.count(w)
-            page_data['words'].append((w, count))
-            counted.append(w)
-            word = Word.query.filter_by(name=w.decode('utf-8')).first()
+        lower_word = w.lower().decode('utf-8')
+        if lower_word not in counted:
+            count = count_word(lower_word, words)
+            counted.append(lower_word)
+            word = Word.query.filter_by(name=lower_word).first()
             if not word:
                 nwc += 1
-                word = Word(name=w.decode('utf-8'))
-            occurrence = PageWord.get(page=page, word=word)
+                word = Word(name=lower_word)
+            occurrence = PageWord.query.filter_by(page=page, word=word).first()
             if not occurrence:
-                occurrence = PageWord.get(page=page, word=word, count=count)
-            else:
+                occurrence = PageWord(page=page, word=word, count=count)
+                occurrences.append(occurrence)
+            elif occurrence.count != count:
                 occurrence.count = count
-            occurrences.append(occurrence)
-            print '{0}: there are {1} of word {2}'.format(origin, count, w)
-    db.session.add_all(occurrences)
-    db.session.commit()
+                occurrences.append(occurrence)
+    try:
+        db.session.add_all(occurrences)
+        db.session.commit()
+    except Exception, ex:
+        db.session.rollback()
+        return 0, 0
     return nwc, nlc
 
 
 def is_safe(link):
-    _is_safe = True
-    if link in SKIP_LINKS:
-        _is_safe = False
-    elif ('.' in link.split('/')[-1] and link.split('/')[-1].split('.')[-1] or '') in DIRTY_EXTENSIONS:
-        _is_safe = False
-    return _is_safe
+    return link not in SKIP_LINKS
 
 
-def process_url(origin, verified_links, depth=2):
+def process_url(origin, links=set(), nw=0, nl=0, depth=2):
     try:
         page = urllib2.urlopen(origin)
         html_src = page.read()
         page.close()
         parsed_html = html.fromstring(html_src)
     except Exception, ex:
-        return
+        print ex.message
+        return nw, nl
     title = parsed_html.xpath('//head/title/text()') and parsed_html.xpath('head//title/text()')[0] or 'Untitled Page'
-    index_html(html_src, origin, title)
+    _nw, _nl = index_html(parsed_html.xpath('//body')[0], origin, title)
+    nw += _nw
+    nl += _nl
+    links.add(origin)
     new_links = set()
     for link in parsed_html.xpath('//a/@href'):
-        if is_safe(link) and link not in verified_links:
-            valid_link = link
+        if is_safe(link):
             if 'http' not in link:
                 protocol, address = origin.split('//')
                 domain = address.split('/')[0]
                 valid_link = '%s//%s%s' % (protocol, domain, not link.startswith('/') and '/' + link or link)
-            if valid_link not in verified_links:
                 new_links.add(valid_link)
     if depth > 0:
-        verified_links.update(verified_links.union(new_links))
-        for l in new_links:
-            print 'depth: %s' % str(depth)
-            process_url(l, verified_links, depth=depth - 1)
-    return verified_links
+        print depth
+        for l in new_links.difference(links):
+            print l
+            nw, nl = process_url(l, links=links, nw=nw, nl=nl, depth=depth - 1)
+    return nw, nl
 
 
 if __name__ == '__main__':
