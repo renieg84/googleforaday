@@ -90,15 +90,16 @@ def count_word(a, elems):
 
 
 def get_text(element, result=[]):
+    print element.tag
+    if element.text and element.text.strip():
+        result.append(element.text.strip())
+    if element.tail and element.tail.strip():
+        result.append(element.tail.strip())
     children = element.getchildren()
     if children:
         for elem in filter(lambda e: isinstance(e, HtmlElement) and e.tag not in SKIP_TAGS, children):
             get_text(elem)
-    else:
-        if element.text and element.text.strip():
-            result.append(element.text.strip())
-        elif element.tail and element.tail.strip():
-            result.append(element.tail.strip())
+
     return " ".join(result)
 
 
@@ -106,13 +107,16 @@ def index_html(parsed_html, origin, title):
     body_text = get_text(parsed_html)
     nwc = nlc = 0
     full_clean_data = re.sub('[{0}\d]'.format(re.escape(string.punctuation)), ' ', body_text)
-    words = full_clean_data.split()
+    words = []
+    for line in full_clean_data.splitlines():
+        words.extend(line.split())
     counted = []
-    occurrences = []
+    # occurrences = []
     page = Page.query.filter_by(link=origin).first()
     if not page:
         nlc += 1
         page = Page(title=title, link=origin)
+        db.session.add(page)
     for w in words:
         try:
             lower_word = w.lower().decode('utf-8')
@@ -126,15 +130,19 @@ def index_html(parsed_html, origin, title):
             if not word:
                 nwc += 1
                 word = Word(name=lower_word)
+                db.session.add(word)
             occurrence = PageWord.query.filter_by(page=page, word=word).first()
             if not occurrence:
                 occurrence = PageWord(page=page, word=word, count=count)
-                occurrences.append(occurrence)
+                db.session.add(occurrence)
+                # occurrences.append(occurrence)
             elif occurrence.count != count:
+                db.session.add(occurrence)
                 occurrence.count = count
-                occurrences.append(occurrence)
+                # occurrences.append(occurrence)
+
     try:
-        db.session.add_all(occurrences)
+        # db.session.add_all(occurrences)
         db.session.commit()
     except Exception, ex:
         db.session.rollback()
