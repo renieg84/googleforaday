@@ -11,6 +11,11 @@ body {
     width: 100px;
 }
 
+#clear-button {
+    left: 15px;
+    width: 100px;
+}
+
 #search-button {
     width: 100px;
     margin-left: -20px;
