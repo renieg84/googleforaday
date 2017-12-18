@@ -35,7 +35,7 @@ def send_template(template):
     return send_file('templates/partials/{}'.format(template))
 
 
-@app.route('/index-url', methods=('POST', 'UPDATE',))
+@app.route('/index-url', methods=('POST', 'PUT',))
 def index_url():
     origin = request.args.get('url', '', type=str)
     if not origin:
