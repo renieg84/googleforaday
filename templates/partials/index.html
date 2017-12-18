@@ -1,12 +1,23 @@
 <div class="col-xs-12" id="index-box">
-    <input ng-model="url" name="url" class="form-control center-block" id="url-box"
+    <input ng-model="index.url" name="url" class="form-control center-block" id="url-box"
            placeholder="Enter URL...">
     <div id="index-button-block" class="col-xs-12 text-center">
-        <button type="button" class="btn btn-success btn-lg" id="index-button">Index</button>
-        <button type="button" class="btn btn-danger btn-lg" id="search-button">Clear</button>
+        <button type="button" class="btn btn-success btn-lg" id="index-button" ng-click="indexURL()">Index</button>
+        <button type="button" class="btn btn-danger btn-lg" id="search-button" ng-click="clearIndex()">Clear</button>
     </div>
 </div>
 
-<div id="index-result" class="col-xs-12">
-    <p>Indexed <strong>8</strong> new pages and <strong>345</strong> words.</p>
+<div id="index-info" class="col-xs-12">
+    <p ng-show="index.waiting">
+        url {{ url }} is being indexed...
+    </p>
+    <p ng-show="index.done">
+        Indexed <strong>{{ index.nl }}</strong> new pages and <strong>{{ index.nw }}</strong> words.
+    </p>
+    <p ng-show="clean.waiting">
+        index data is being cleaned...
+    </p>
+</div>
+<div id="index-info" class="col-xs-12" ng-show="clean.done">
+    <p>index data has been cleaned successfully.</p>
 </div>
