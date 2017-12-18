@@ -47,9 +47,9 @@ def index_url():
 @app.route('/clear-index', methods=('POST',))
 def clear_index():
     try:
+        db.session.query(PageWord).delete()
         db.session.query(Page).delete()
         db.session.query(Word).delete()
-        db.session.query(PageWord).delete()
         db.session.commit()
     except Exception, ex:
         print ex.message
@@ -79,9 +79,13 @@ def search_word(word):
 
 def count_word(a, elems):
     count = 0
+    print a
     for elem in elems:
-        if elem.lower().decode('UTF-8') == a:
-            count += 1
+        try:
+            if elem.lower().decode('UTF-8') == a:
+                count += 1
+        except Exception, ex:
+            continue
     return count
 
 
@@ -110,7 +114,11 @@ def index_html(parsed_html, origin, title):
         nlc += 1
         page = Page(title=title, link=origin)
     for w in words:
-        lower_word = w.lower().decode('utf-8')
+        try:
+            lower_word = w.lower().decode('utf-8')
+        except Exception, ex:
+            print ex.message
+            continue
         if lower_word not in counted:
             count = count_word(lower_word, words)
             counted.append(lower_word)
