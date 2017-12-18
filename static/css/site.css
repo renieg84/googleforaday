@@ -12,8 +12,8 @@ body {
 }
 
 #search-button {
-    margin-left: 15px;
     width: 100px;
+    margin-left: -20px;
 }
 
 #index-menu {
