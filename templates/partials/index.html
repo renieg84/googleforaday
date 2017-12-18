@@ -14,10 +14,8 @@
     <p ng-show="index.done">
         Indexed <strong>{{ index.nl }}</strong> new pages and <strong>{{ index.nw }}</strong> words.
     </p>
-    <p ng-show="clean.waiting">
+    <p ng-show="clear.waiting">
         index data is being cleaned...
     </p>
-</div>
-<div id="index-info" class="col-xs-12" ng-show="clean.done">
-    <p>index data has been cleaned successfully.</p>
+    <p ng-show="clear.done">index data has been cleaned successfully.</p>
 </div>

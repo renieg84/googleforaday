@@ -16,6 +16,7 @@ function IndexCtrl($scope, $log, $http) {
         var url = $scope.index.url;
         $scope.index.waiting = true;
         $scope.index.done = false;
+        $scope.clear.done = false;
         $http({
             method: 'POST',
             url: '/index-url',
@@ -39,6 +40,7 @@ function IndexCtrl($scope, $log, $http) {
     $scope.clearIndex = function () {
         $scope.clear.done = false;
         $scope.clear.waiting = true;
+        $scope.index.done = false;
         $http({
             method: 'POST',
             url: '/clear-index'
