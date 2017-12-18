@@ -6,8 +6,8 @@ db = SQLAlchemy()
 class Page(db.Model):
     __tablename__ = 'page'
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String, index=True)
-    link = db.Column(db.String, unique=True, index=True)
+    title = db.Column(db.String(200), index=True)
+    link = db.Column(db.String(200), unique=True, index=True)
     word_assoc = db.relationship('PageWord', backref=db.backref("page"), cascade="all, delete-orphan",
                                  single_parent=True, lazy='dynamic')
 
@@ -24,7 +24,7 @@ class Page(db.Model):
 class Word(db.Model):
     __tablename__ = 'word'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, unique=True, index=True)
+    name = db.Column(db.String(200), unique=True, index=True)
     page_assoc = db.relationship('PageWord', backref=db.backref("word"), cascade="all, delete-orphan",
                                  single_parent=True, lazy='dynamic')
 
