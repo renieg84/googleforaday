@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.config['DEBUG'] = True
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:mysql@localhost/googleforaday'
-app.url_map.strict_slashes = False
+# app.url_map.strict_slashes = False
 db.app = app
 db.init_app(app)
 
@@ -52,20 +52,22 @@ def clear_index():
         db.session.query(Word).delete()
         db.session.commit()
     except Exception, ex:
-        print ex.message
         db.session.rollback()
     return jsonify({'cleaned': True})
 
 
 @app.route('/search-word', methods=('GET',))
 def search():
-    word = request.args.get('word', '', type=str)
-    return search_word(word)
+    try:
+        word = request.args.get('word', '')
+        result = search_word(word.encode('UTF-8'))
+    except Exception, ex:
+        result = []
+    return result
 
 
 def search_word(word):
-    decoded_word = word.decode('utf-8')
-    w = db.session.query(Word).filter(Word.name.ilike('%{0}%'.format(decoded_word))).first()
+    w = db.session.query(Word).filter(Word.name.ilike('%{0}%'.format(word))).first()
     result = []
     if w:
         occurrences = w.page_assoc.order_by('count desc').all()
@@ -79,10 +81,9 @@ def search_word(word):
 
 def count_word(a, elems):
     count = 0
-    print a
     for elem in elems:
         try:
-            if elem.lower().decode('UTF-8') == a:
+            if elem.lower() == a:
                 count += 1
         except Exception, ex:
             continue
@@ -90,7 +91,6 @@ def count_word(a, elems):
 
 
 def get_text(element, result=[]):
-    print element.tag
     if element.text and element.text.strip():
         result.append(element.text.strip())
     if element.tail and element.tail.strip():
@@ -106,12 +106,12 @@ def get_text(element, result=[]):
 def index_html(parsed_html, origin, title):
     body_text = get_text(parsed_html)
     nwc = nlc = 0
-    full_clean_data = re.sub('[{0}\d]'.format(re.escape(string.punctuation)), ' ', body_text)
+    full_clean_data = re.sub(r'[{0}\d]'.format(re.escape(string.punctuation)), ' ', body_text)
     words = []
     for line in full_clean_data.splitlines():
         words.extend(line.split())
     counted = []
-    # occurrences = []
+    occurrences = []
     page = Page.query.filter_by(link=origin).first()
     if not page:
         nlc += 1
@@ -119,30 +119,26 @@ def index_html(parsed_html, origin, title):
         db.session.add(page)
     for w in words:
         try:
-            lower_word = w.lower().decode('utf-8')
+            lower_word = w.lower()
+            if lower_word not in counted:
+                count = count_word(lower_word, [e for e in words if e not in counted])
+                counted.append(lower_word)
+                word = Word.query.filter_by(name=lower_word).first()
+                if not word:
+                    nwc += 1
+                    word = Word(name=lower_word)
+                    db.session.add(word)
+                occurrence = PageWord.query.filter_by(page=page, word=word).first()
+                if not occurrence:
+                    occurrence = PageWord(page=page, word=word, count=count)
+                    occurrences.append(occurrence)
+                elif occurrence.count != count:
+                    occurrence.count = count
+                    occurrences.append(occurrence)
         except Exception, ex:
-            print ex.message
             continue
-        if lower_word not in counted:
-            count = count_word(lower_word, words)
-            counted.append(lower_word)
-            word = Word.query.filter_by(name=lower_word).first()
-            if not word:
-                nwc += 1
-                word = Word(name=lower_word)
-                db.session.add(word)
-            occurrence = PageWord.query.filter_by(page=page, word=word).first()
-            if not occurrence:
-                occurrence = PageWord(page=page, word=word, count=count)
-                db.session.add(occurrence)
-                # occurrences.append(occurrence)
-            elif occurrence.count != count:
-                db.session.add(occurrence)
-                occurrence.count = count
-                # occurrences.append(occurrence)
-
     try:
-        # db.session.add_all(occurrences)
+        db.session.add_all(occurrences)
         db.session.commit()
     except Exception, ex:
         db.session.rollback()
@@ -154,15 +150,15 @@ def is_safe(link):
     return link not in SKIP_LINKS
 
 
-def process_url(origin, links=set(), nw=0, nl=0, depth=2):
+def process_url(origin, links=None, nw=0, nl=0, depth=2):
     try:
         page = urllib2.urlopen(origin)
         html_src = page.read()
         page.close()
         parsed_html = html.fromstring(html_src)
     except Exception, ex:
-        print ex.message
         return nw, nl
+    print 'Scrapping site: {0} with depth={1}'.format(origin, depth)
     title = parsed_html.xpath('//head/title/text()') and parsed_html.xpath('head//title/text()')[0] or 'Untitled Page'
     _nw, _nl = index_html(parsed_html.xpath('//body')[0], origin, title)
     nw += _nw
@@ -177,9 +173,7 @@ def process_url(origin, links=set(), nw=0, nl=0, depth=2):
                 valid_link = '%s//%s%s' % (protocol, domain, not link.startswith('/') and '/' + link or link)
                 new_links.add(valid_link)
     if depth > 0:
-        print depth
         for l in new_links.difference(links):
-            print l
             nw, nl = process_url(l, links=links, nw=nw, nl=nl, depth=depth - 1)
     return nw, nl
 
