@@ -8,7 +8,7 @@ from flask.helpers import send_file
 from flask.templating import render_template
 from lxml import html
 from lxml.html import HtmlElement
-
+from sqlalchemy import func
 from models import db, Page, Word, PageWord
 
 # App config
@@ -67,15 +67,17 @@ def search():
 
 
 def search_word(word):
-    w = db.session.query(Word).filter(Word.name.ilike('%{0}%'.format(word))).first()
+    words = db.session.query(Word).filter(Word.name.ilike('%{0}%'.format(word))).all()
     result = []
-    if w:
-        occurrences = w.page_assoc.order_by('count desc').all()
-        for o in occurrences:
-            result.append({
-                'count': o.count,
-                'word': o.word.name,
-                'page': {'link': o.page.link, 'title': o.page.title}})
+    occurrences = db.session.query(PageWord, func.sum(PageWord.count).label('total')). \
+        group_by(PageWord.page_id).\
+        filter(PageWord.word_id.in_([w.id for w in words])). \
+        order_by('count desc').all()
+    for o in occurrences:
+        result.append({
+            'count': o[1],
+            'word': o[0].word.name,
+            'page': {'link': o[0].page.link, 'title': o[0].page.title}})
     return jsonify(result=result)
 
 
