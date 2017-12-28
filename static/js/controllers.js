@@ -12,7 +12,7 @@ function IndexCtrl($scope, $log, $http) {
     };
 
     $scope.indexURL = function () {
-        $log.log($scope.url);
+        $log.log($scope.index.url);
         var url = $scope.index.url;
         $scope.index.waiting = true;
         $scope.index.done = false;

@@ -2,6 +2,7 @@
 import re
 import string
 import urllib2
+from urllib2 import urlopen, URLError
 
 from flask import Flask, jsonify, request
 from flask.helpers import send_file
@@ -14,9 +15,8 @@ from models import db, Page, Word, PageWord
 # App config
 app = Flask(__name__)
 app.config['DEBUG'] = True
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:mysql@localhost/googleforaday'
-# app.url_map.strict_slashes = False
+app.url_map.strict_slashes = False
 db.app = app
 db.init_app(app)
 
@@ -70,12 +70,12 @@ def search_word(word):
     words = db.session.query(Word).filter(Word.name.ilike('%{0}%'.format(word))).all()
     result = []
     occurrences = db.session.query(PageWord, func.sum(PageWord.count).label('total')). \
-        group_by(PageWord.page_id).\
+        group_by(PageWord.page_id). \
         filter(PageWord.word_id.in_([w.id for w in words])). \
-        order_by('count desc').all()
+        order_by('total desc').all()
     for o in occurrences:
         result.append({
-            'count': o[1],
+            'count': int(o[1]),
             'word': o[0].word.name,
             'page': {'link': o[0].page.link, 'title': o[0].page.title}})
     return jsonify(result=result)
@@ -92,7 +92,7 @@ def count_word(a, elems):
     return count
 
 
-def get_text(element, result=[]):
+def get_text(element, result):
     if element.text and element.text.strip():
         result.append(element.text.strip())
     if element.tail and element.tail.strip():
@@ -100,20 +100,18 @@ def get_text(element, result=[]):
     children = element.getchildren()
     if children:
         for elem in filter(lambda e: isinstance(e, HtmlElement) and e.tag not in SKIP_TAGS, children):
-            get_text(elem)
-
+            get_text(elem, result)
     return " ".join(result)
 
 
 def index_html(parsed_html, origin, title):
-    body_text = get_text(parsed_html)
+    body_text = get_text(parsed_html, [])
     nwc = nlc = 0
     full_clean_data = re.sub(r'[{0}\d]'.format(re.escape(string.punctuation)), ' ', body_text)
     words = []
     for line in full_clean_data.splitlines():
         words.extend(line.split())
     counted = []
-    occurrences = []
     page = Page.query.filter_by(link=origin).first()
     if not page:
         nlc += 1
@@ -133,14 +131,13 @@ def index_html(parsed_html, origin, title):
                 occurrence = PageWord.query.filter_by(page=page, word=word).first()
                 if not occurrence:
                     occurrence = PageWord(page=page, word=word, count=count)
-                    occurrences.append(occurrence)
+                    db.session.add(occurrence)
                 elif occurrence.count != count:
                     occurrence.count = count
-                    occurrences.append(occurrence)
+                    db.session.add(occurrence)
         except Exception, ex:
             continue
     try:
-        db.session.add_all(occurrences)
         db.session.commit()
     except Exception, ex:
         db.session.rollback()
@@ -154,11 +151,8 @@ def is_safe(link):
 
 def process_url(origin, links=None, nw=0, nl=0, depth=2):
     try:
-        page = urllib2.urlopen(origin)
-        html_src = page.read()
-        page.close()
-        parsed_html = html.fromstring(html_src)
-    except Exception, ex:
+        parsed_html = html.fromstring(urlopen(origin).read())
+    except Exception as ex:
         return nw, nl
     print 'Scrapping site: {0} with depth={1}'.format(origin, depth)
     title = parsed_html.xpath('//head/title/text()') and parsed_html.xpath('head//title/text()')[0] or 'Untitled Page'
