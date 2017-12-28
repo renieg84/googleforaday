@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 import re
 import string
-import urllib2
-from urllib2 import urlopen, URLError
+from urllib2 import urlopen
 
 from flask import Flask, jsonify, request
 from flask.helpers import send_file
 from flask.templating import render_template
 from lxml import html
 from lxml.html import HtmlElement
-from sqlalchemy import func
+from sqlalchemy import func, text
+
 from models import db, Page, Word, PageWord
 
 # App config
@@ -72,7 +72,7 @@ def search_word(word):
     occurrences = db.session.query(PageWord, func.sum(PageWord.count).label('total')). \
         group_by(PageWord.page_id). \
         filter(PageWord.word_id.in_([w.id for w in words])). \
-        order_by('total desc').all()
+        order_by(text('total desc')).all()
     for o in occurrences:
         result.append({
             'count': int(o[1]),
