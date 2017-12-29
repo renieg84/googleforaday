@@ -149,7 +149,7 @@ def is_safe(link):
     return link not in SKIP_LINKS
 
 
-def process_url(origin, links=None, nw=0, nl=0, depth=2):
+def process_url(origin, links=set(), nw=0, nl=0, depth=2):
     try:
         parsed_html = html.fromstring(urlopen(origin).read())
     except Exception as ex:
@@ -168,6 +168,8 @@ def process_url(origin, links=None, nw=0, nl=0, depth=2):
                 domain = address.split('/')[0]
                 valid_link = '%s//%s%s' % (protocol, domain, not link.startswith('/') and '/' + link or link)
                 new_links.add(valid_link)
+            else:
+                new_links.add(link)
     if depth > 0:
         for l in new_links.difference(links):
             nw, nl = process_url(l, links=links, nw=nw, nl=nl, depth=depth - 1)
