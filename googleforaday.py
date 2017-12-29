@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import re
 import string
-from urllib2 import urlopen
+import socket
+from urllib2 import urlopen, URLError
 
 from flask import Flask, jsonify, request
 from flask.helpers import send_file
@@ -151,10 +152,14 @@ def is_safe(link):
 
 def process_url(origin, links=set(), nw=0, nl=0, depth=2):
     try:
-        parsed_html = html.fromstring(urlopen(origin).read())
-    except Exception as ex:
+        parsed_html = html.fromstring(urlopen(origin, timeout=3).read())
+        print 'Scrapping site: {0} with depth={1}'.format(origin, depth)
+    except URLError:
+        print "Something went wrong with {0}".format(origin)
         return nw, nl
-    print 'Scrapping site: {0} with depth={1}'.format(origin, depth)
+    except socket.timeout:
+        print "Timed out for {0}!".format(origin)
+        return nw, nl
     title = parsed_html.xpath('//head/title/text()') and parsed_html.xpath('head//title/text()')[0] or 'Untitled Page'
     _nw, _nl = index_html(parsed_html.xpath('//body')[0], origin, title)
     nw += _nw
